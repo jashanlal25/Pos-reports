@@ -1,0 +1,7 @@
+node_modules/
+.vercel/
+.env*
+*.zip
+*.dbf
+*.DBF
+initial-report.json

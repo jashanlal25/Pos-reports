@@ -1,0 +1,4 @@
+export function dbAction(mode,action){return new Promise((resolve,reject)=>{const req=indexedDB.open('pos-business-reports',1);req.onupgradeneeded=()=>req.result.createObjectStore('data');req.onerror=()=>reject(req.error);req.onsuccess=()=>{const db=req.result;const tx=db.transaction('data',mode);let result;try{const r=action(tx.objectStore('data'));r.onsuccess=()=>{result=r.result};r.onerror=()=>reject(r.error)}catch(e){db.close();reject(e);return}tx.oncomplete=()=>{db.close();resolve(result)};tx.onerror=()=>{db.close();reject(tx.error)};tx.onabort=()=>{db.close();reject(tx.error||Error('Storage unavailable'))}}})}
+export const getSaved=()=>dbAction('readonly',s=>s.get('report'));
+export const saveReport=report=>dbAction('readwrite',s=>s.put(report,'report'));
+export const clearSaved=()=>dbAction('readwrite',s=>s.delete('report'));
