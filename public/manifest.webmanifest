@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "POS Reports for Your Business",
-  "short_name": "POS Reports",
-  "description": "Receivables, payables and stock from your POS backup",
+  "name": "Nexus Pulse",
+  "short_name": "Nexus Pulse",
+  "description": "Business insights from your POS backup",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
