@@ -13,6 +13,11 @@ function renderBalances(){
   $(id).textContent=shown?money(values[key]):'••••••';
   $(id).setAttribute('aria-label',shown?money(values[key]):'Balance hidden');
  }
+ const consoleValues=[['consoleReceivable','consoleReceivableBar','receivable'],['consolePayable','consolePayableBar','payable'],['consoleStock','consoleStockBar','stockCost']];
+ const max=values?Math.max(...consoleValues.map(([, ,key])=>values[key]||0),1):1;
+ for(const [id,bar,key] of consoleValues){const visible=balancesVisible&&values;$(id).textContent=visible?money(values[key]):'••••••';$(bar).style.setProperty('--level',values?Math.max(12,Math.round((values[key]||0)/max*100))+'%':'10%');$(bar).classList.toggle('locked',!visible)}
+ $('consoleStatus').textContent=report?'REPORT READY':'AWAITING BACKUP';
+ $('consoleDate').textContent=report?'Latest activity · '+date(report.asOf):'Import a ZIP to begin';
  $('toggleBalances').setAttribute('aria-pressed',String(balancesVisible));
  $('toggleBalances').setAttribute('aria-label',balancesVisible?'Hide summary balances':'Show summary balances');
  $('balanceToggleLabel').textContent=balancesVisible?'Hide balances':'Show balances';
