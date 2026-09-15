@@ -1,4 +1,4 @@
-const SHELL='pos-business-shell-v1';const ASSETS=['/','/index.html','/app.mjs?v=3','/parser.mjs','/worker.mjs','/storage.mjs','/style.css?v=3','/manifest.webmanifest','/icon-192.png','/icon-512.png'];
+const SHELL='pos-business-shell-v2';const ASSETS=['/','/index.html','/app.mjs?v=4','/parser.mjs','/worker.mjs','/storage.mjs','/style.css?v=4','/manifest.webmanifest','/icon-192.png','/icon-512.png'];
 self.addEventListener('install',event=>{event.waitUntil((async()=>{const cache=await caches.open(SHELL);await cache.addAll(ASSETS);await self.skipWaiting()})())});
 self.addEventListener('activate',event=>event.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('pos-business-shell-')&&key!==SHELL)await caches.delete(key);await self.clients.claim()})()));
 self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(url.origin!==self.location.origin)return;
