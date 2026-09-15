@@ -18,6 +18,12 @@ function renderBalances(){
 $('toggleBalances').onclick=()=>{balancesVisible=!balancesVisible;renderBalances()};
 window.addEventListener('pageshow',()=>{balancesVisible=false;renderBalances()});
 const labels={receivables:'Receivables',payables:'Payables',stock:'Stock report'};
+function setShareProgress(percent,title,message){
+ const panel=$('shareProgress');if(!panel)return;
+ panel.hidden=false;$('shareProgressTitle').textContent=title;$('shareProgressMessage').textContent=message;
+ const safe=Math.max(0,Math.min(100,Math.round(percent)));$('shareProgressBar').style.width=safe+'%';$('shareProgressPercent').textContent=safe+'%';
+}
+function hideShareProgress(){const panel=$('shareProgress');if(panel)panel.hidden=true}
 function notice(text,error=false){$('notice').textContent=text;$('notice').className=error?'error':'';$('notice').hidden=!text}
 function noticeError(e){notice(e.message||String(e),true)}
 function filteredRows(){if(!report)return [];const q=$('search').value.trim().toLowerCase(),f=$('filter').value,company=$('company').value,min=Number($('minimum').value)||0,field=$('sort').value,dir=$('order').value==='asc'?1:-1;
@@ -68,12 +74,14 @@ function setReport(next,source){report=next;page=1;const s=report.summary;
  $('checks').hidden=false;$('checkSummary').textContent=`Report notes · ${rc+pc} account differences · ${s.stockMismatches} stock movement differences`;
  $('checksBody').innerHTML=`<p>Customer credits: <strong>${money(s.customerCredits)}</strong> · Supplier advances: <strong>${money(s.supplierAdvances)}</strong>. Summary cards show positive balances without subtracting credits or advances.</p><p>Receivables use customer records (C); payables use supplier records (S). Both use stored TDBAL balances in MAST.DBF. ${rc} customer and ${pc} supplier balances differ from invoice AMOUNT minus PAID. “Last invoice” is the latest non-cancelled invoice/opening record, not a payment date or due date.</p><p>Stock uses OPSRB: opening + purchases − sales + returns + incoming − outgoing. Divide by ITEM.PKQTY for packs. Value = packs × ITEM.AVERAGE; the summary includes positive stock only. ${s.stockMismatches} items differ when purchase/sales movements are compared with item-level invoice quantities. This is a calculated backup report, not a physical stock count.</p><p>Stored discount displays ITEM.LDISC. Latest purchase and sale discounts come from their individual transaction lines and are available in item details. Fixed discount FDISC is preserved separately; its exact POS behavior is not assumed. Do not apply these discounts again to stored average cost.</p>${report.warnings.length?'<ul>'+report.warnings.map(w=>'<li>'+esc(w)+'</li>').join('')+'</ul>':''}<p>Read ${report.files.length} database tables; skipped ${report.files.reduce((a,f)=>a+f.deleted,0).toLocaleString()} deleted records. Your original ZIP is not modified.</p>`;
  render();}
-async function importFile(file){if(busy||!file)return;if(!/\.zip$/i.test(file.name)){notice('Choose the actual .ZIP backup file, not a Google Drive link.',true);return}if(file.size>150*1024*1024){notice('Please choose a ZIP smaller than 150 MB.',true);return}
+async function importFile(file,shared=false){
+ if(shared)setShareProgress(38,'Reading shared backup','Opening the ZIP file…');if(busy||!file)return;if(!/\.zip$/i.test(file.name)){notice('Choose the actual .ZIP backup file, not a Google Drive link.',true);return}if(file.size>150*1024*1024){notice('Please choose a ZIP smaller than 150 MB.',true);return}
  busy=true;$('clearButton').disabled=true;$('importButton').disabled=true;notice('Reading your backup…');
- let worker;try{worker=new Worker('/worker.mjs',{type:'module'});const buffer=await file.arrayBuffer();const next=await new Promise((resolve,reject)=>{worker.onmessage=({data})=>{if(data.progress)notice(data.progress);if(data.error)reject(Error(data.error));if(data.report)resolve(data.report)};worker.onerror=()=>reject(Error('The backup reader could not start. Reload the app and try again.'));worker.postMessage({buffer,filename:file.name},[buffer])});
+ let worker;try{worker=new Worker('/worker.mjs',{type:'module'});const buffer=await file.arrayBuffer();const next=await new Promise((resolve,reject)=>{let stages=0;worker.onmessage=({data})=>{if(data.progress){stages++;if(shared)setShareProgress(Math.min(93,42+stages*6),'Analysing backup',data.progress);else notice(data.progress)}if(data.error)reject(Error(data.error));if(data.report)resolve(data.report)};worker.onerror=()=>reject(Error('The backup reader could not start. Reload the app and try again.'));worker.postMessage({buffer,filename:file.name},[buffer])});
   let saved=true;try{await saveReport(next);try{localStorage.removeItem('pos-business-cleared')}catch{};navigator.storage?.persist?.().catch(()=>{})}catch{saved=false}
   setReport(next,saved?'Latest import saved on this device.':'Loaded for this session only; device storage is unavailable.');notice(saved?'Backup imported. All three reports have been refreshed.':'Reports are ready, but this browser could not save them. Keep the ZIP to import again.',!saved);
- }catch(e){noticeError(e)}finally{worker?.terminate();busy=false;$('clearButton').disabled=!report;$('importButton').disabled=false;$('fileInput').value=''}
+  if(shared){setShareProgress(100,'Backup added','Your receivables, payables and stock reports are ready.');setTimeout(hideShareProgress,850)}
+ }catch(e){if(shared){setShareProgress(0,'Could not add backup',e.message||'Please try sharing the ZIP file again.');$('shareProgressBar').classList.add('error')}noticeError(e)}finally{worker?.terminate();busy=false;$('clearButton').disabled=!report;$('importButton').disabled=false;$('fileInput').value=''}
 }
 function showDetails(code){const r=report[tab].find(x=>x.code===code);if(!r)return;$('detailTitle').textContent=r.name;
  const pairs=tab==='stock'?[['Item code',r.code],['Company',r.company],['Quantity (packs)',fmt(r.packs)],['Stock units',fmt(r.units)],['Units per pack',fmt(r.packSize,0)],['Packing',r.packing||'Not recorded'],['Average cost / pack',money(r.cost)],['Trade price / pack',money(r.trade)],['Retail price / pack',money(r.retail)],['Cost value',money(r.value)],['Stored discount (LDISC)',fmt(r.discount)+'%'],['Fixed discount field (FDISC)',fmt(r.fixedDiscount)],['Latest purchase discount',r.purchaseDiscount===null?'Not recorded':fmt(r.purchaseDiscount)+'%'],['Latest sale discount',r.saleDiscount===null?'Not recorded':fmt(r.saleDiscount)+'%'],['Last purchase',date(r.lastPurchase)],['Last sale',date(r.lastSale)],['Movement difference (units)',fmt(r.movementDiff)]]:[['Account code',r.code],['Stored balance',money(r.balance)],['Invoice calculation',r.calculated===null?'Unavailable':money(r.calculated)],['Difference',r.difference===null?'Unavailable':money(r.difference)],['Phone',r.phone||'Not recorded'],['Address',r.address||'Not recorded'],['Last invoice',date(r.lastDate)]];
@@ -107,7 +115,27 @@ $('installButton').onclick=async()=>{
 };
 updateInstallButton();
 window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>{e.preventDefault();importFile(e.dataTransfer.files[0])});
-async function takeShared(){if(!new URL(location.href).searchParams.has('shared'))return false;try{const cache=await caches.open('pos-business-incoming');const response=await cache.match('/incoming-backup');if(!response){notice('No ZIP file was received. Use Import backup ZIP to select the file.',true);return false}const name=response.headers.get('X-Filename')||'Shared-backup.zip';const file=new File([await response.blob()],decodeURIComponent(name),{type:'application/zip'});await importFile(file);await cache.delete('/incoming-backup');history.replaceState(null,'','/');return true}catch(e){noticeError(e);return false}}
+async function takeShared(){
+ if(!new URL(location.href).searchParams.has('shared'))return false;
+ setShareProgress(8,'Opening shared backup','Receiving the ZIP file from the other app…');
+ try{
+  const cache=await caches.open('pos-business-incoming');let response;
+  for(let attempt=0;attempt<180;attempt++){
+   response=await cache.match('/incoming-backup');
+   if(response)break;
+   const sharedError=await cache.match('/incoming-error');
+   if(sharedError){const message=await sharedError.text();await cache.delete('/incoming-error');throw Error(message||'Shared file could not be received.')}
+   const percent=Math.min(30,8+Math.floor(attempt/6));
+   setShareProgress(percent,'Opening shared backup','Receiving the ZIP file from the other app…');
+   await new Promise(resolve=>setTimeout(resolve,500));
+  }
+  if(!response)throw Error('The shared file did not arrive. Please try sharing the ZIP again.');
+  setShareProgress(34,'Shared backup received','Preparing it for analysis…');
+  const name=response.headers.get('X-Filename')||'Shared-backup.zip';
+  const file=new File([await response.blob()],decodeURIComponent(name),{type:'application/zip'});
+  await cache.delete('/incoming-backup');history.replaceState(null,'','/');await importFile(file,true);return true;
+ }catch(e){setShareProgress(0,'Could not add backup',e.message||'Please try sharing the ZIP file again.');$('shareProgressBar').classList.add('error');noticeError(e);return false}
+}
 async function init(){
  if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
  let saved;try{saved=await getSaved()}catch{notice('Device storage is unavailable; imports will last for this session only.',true)}
