@@ -8,20 +8,14 @@ function applyAppearance(palette,mode){const chosenPalette=Object.hasOwn(palette
 try{applyAppearance(localStorage.getItem('pos-reports-palette')||'classic',localStorage.getItem('pos-reports-mode')||'day')}catch{applyAppearance('classic','day')}
 function renderBalances(){
  const values=report?.summary;
- for(const [id,key] of [['receivableTotal','receivable'],['payableTotal','payable'],['stockTotal','stockCost']]){
-  const shown=balancesVisible&&values;
-  $(id).textContent=shown?money(values[key]):'••••••';
-  $(id).setAttribute('aria-label',shown?money(values[key]):'Balance hidden');
- }
  const consoleValues=[['consoleReceivable','consoleReceivableBar','receivable'],['consolePayable','consolePayableBar','payable'],['consoleStock','consoleStockBar','stockCost']];
  const max=values?Math.max(...consoleValues.map(([, ,key])=>values[key]||0),1):1;
  for(const [id,bar,key] of consoleValues){const visible=balancesVisible&&values;$(id).textContent=visible?money(values[key]):'••••••';$(bar).style.setProperty('--level',values?Math.max(12,Math.round((values[key]||0)/max*100))+'%':'10%');$(bar).classList.toggle('locked',!visible)}
  $('consoleStatus').textContent=report?'REPORT READY':'AWAITING BACKUP';
  $('consoleDate').textContent=report?'Latest activity · '+date(report.asOf):'Import a ZIP to begin';
  $('toggleBalances').setAttribute('aria-pressed',String(balancesVisible));
- $('toggleBalances').setAttribute('aria-label',balancesVisible?'Hide summary balances':'Show summary balances');
- $('balanceToggleLabel').textContent=balancesVisible?'Hide balances':'Show balances';
- $('eyeSlash').style.display=balancesVisible?'none':'';
+ $('toggleBalances').setAttribute('aria-label',balancesVisible?'Hide amounts':'Show amounts');
+ $('balanceToggleLabel').textContent=balancesVisible?'Hide':'Show';
 }
 $('toggleBalances').onclick=()=>{balancesVisible=!balancesVisible;renderBalances()};
 $('themeButton').onclick=()=>$('themeDialog').showModal();
@@ -75,9 +69,6 @@ function changeTab(next){if(!Object.keys(labels).includes(next))throw Error('Unk
  $('sort').innerHTML=tab==='stock'?'<option value="value">Cost value</option><option value="packs">Quantity (packs)</option><option value="name">Item name (alphabetical)</option><option value="company">Company</option><option value="trade">Trade price</option><option value="discount">Stored discount</option>':'<option value="balance">Balance amount</option><option value="name">Name (alphabetical)</option><option value="code">Account code</option><option value="lastDate">Last invoice date</option>';$('order').value='desc';render();}
 function setReport(next,source){report=next;page=1;const s=report.summary;
  renderBalances();
- $('receivableCount').textContent=`${report.receivables.filter(r=>r.balance>0).length} outstanding · ${report.receivables.length} customers`;
- $('payableCount').textContent=`${report.payables.filter(r=>r.balance>0).length} outstanding · ${report.payables.length} suppliers`;
- $('stockCount').textContent=`${s.inStock} in-stock items · ${s.negativeStock} negative`;
  $('backupMeta').textContent=`${report.filename} · Latest transaction ${date(report.asOf)}`;
  $('company').innerHTML='<option value="">All companies</option>'+[...new Set(report.stock.map(r=>r.company))].sort().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
  $('clearButton').disabled=busy;$('storageStatus').textContent=source;
