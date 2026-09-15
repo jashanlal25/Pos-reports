@@ -3,9 +3,9 @@ const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,
 const fmt=(v,dp=2)=>v===null||v===undefined?'—':Number(v).toLocaleString('en-PK',{minimumFractionDigits:dp,maximumFractionDigits:dp});
 const money=v=>'Rs '+fmt(v),date=v=>/^\d{8}$/.test(v)?new Date(`${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}T12:00:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'Not recorded';
 let report=null,tab='receivables',page=1,filtered=[],busy=false,installPrompt=null,balancesVisible=false;const perPage=30;
-const themeColors={light:'#122b40',night:'#101b2a',emerald:'#0c5e59',indigo:'#37376e',ocean:'#075b78',copper:'#7a4526'};
-function applyTheme(theme){const selected=Object.hasOwn(themeColors,theme)?theme:'light';document.documentElement.dataset.theme=selected;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',themeColors[selected]);document.querySelectorAll('[data-theme-choice]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.themeChoice===selected)));try{localStorage.setItem('pos-reports-theme',selected)}catch{}}
-try{applyTheme(localStorage.getItem('pos-reports-theme')||'light')}catch{applyTheme('light')}
+const paletteColors={classic:'#122b40',emerald:'#0c5e59',indigo:'#37376e',ocean:'#075b78',copper:'#7a4526'};
+function applyAppearance(palette,mode){const chosenPalette=Object.hasOwn(paletteColors,palette)?palette:'classic',chosenMode=mode==='night'?'night':'day';document.documentElement.dataset.theme=chosenPalette;document.documentElement.dataset.mode=chosenMode;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',chosenMode==='night'?'#101b2a':paletteColors[chosenPalette]);document.querySelectorAll('[data-theme-choice]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.themeChoice===chosenPalette)));document.querySelectorAll('[data-mode-choice]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.modeChoice===chosenMode)));try{localStorage.setItem('pos-reports-palette',chosenPalette);localStorage.setItem('pos-reports-mode',chosenMode)}catch{}}
+try{applyAppearance(localStorage.getItem('pos-reports-palette')||'classic',localStorage.getItem('pos-reports-mode')||'day')}catch{applyAppearance('classic','day')}
 function renderBalances(){
  const values=report?.summary;
  for(const [id,key] of [['receivableTotal','receivable'],['payableTotal','payable'],['stockTotal','stockCost']]){
@@ -20,7 +20,7 @@ function renderBalances(){
 }
 $('toggleBalances').onclick=()=>{balancesVisible=!balancesVisible;renderBalances()};
 $('themeButton').onclick=()=>$('themeDialog').showModal();
-document.querySelectorAll('[data-theme-choice]').forEach(button=>button.onclick=()=>applyTheme(button.dataset.themeChoice));
+document.querySelectorAll('[data-theme-choice]').forEach(button=>button.onclick=()=>applyAppearance(button.dataset.themeChoice,document.documentElement.dataset.mode));document.querySelectorAll('[data-mode-choice]').forEach(button=>button.onclick=()=>applyAppearance(document.documentElement.dataset.theme,button.dataset.modeChoice));
 window.addEventListener('pageshow',()=>{balancesVisible=false;renderBalances()});
 const labels={receivables:'Receivables',payables:'Payables',stock:'Stock report'};
 function setShareProgress(percent,title,message){
