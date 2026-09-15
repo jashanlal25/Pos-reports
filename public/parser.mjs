@@ -58,13 +58,30 @@ export function makeReport(tables,filename='Backup.zip'){
  const get=f=>tables[f]?.rows||[],master=get('MAST.DBF'),warnings=[];
  const companies=Object.fromEntries(master.filter(r=>r.MODE==='P').map(r=>[r.CODE,r.NAME]));
  function accounts(mode,files,key){
-  const checkAvailable=files.every(f=>tables[f]);if(!checkAvailable)warnings.push((mode==='C'?'Customer':'Supplier')+' invoice checks unavailable: supporting invoice tables missing.');
-  const balances=new Map(),dates=new Map();
-  for(const f of files){requireFields(tables,f,[key,'AMOUNT','PAID','CAN','IDATE']);for(const r of get(f)){if(r.CAN)continue;balances.set(r[key],(balances.get(r[key])||0)+num(r.AMOUNT)-num(r.PAID));if(/^\d{8}$/.test(r.IDATE))dates.set(r[key],[dates.get(r[key])||'',r.IDATE].sort().pop())}}
+  const checkAvailable=files.every(f=>tables[f]);
+  if(!checkAvailable)warnings.push((mode==='C'?'Customer':'Supplier')+' invoice checks unavailable: supporting invoice tables missing.');
+  const balances=new Map(),dates=new Map(),invoices=new Map();
+  for(const f of files){
+   requireFields(tables,f,[key,'INO','AMOUNT','PAID','CAN','IDATE']);
+   for(const r of get(f)){
+    if(r.CAN)continue;
+    const amount=num(r.AMOUNT),paid=num(r.PAID),remaining=round(amount-paid),code=r[key];
+    balances.set(code,(balances.get(code)||0)+remaining);
+    if(/^\d{8}$/.test(r.IDATE))dates.set(code,[dates.get(code)||'',r.IDATE].sort().pop());
+    if(remaining>0){
+     const rows=invoices.get(code)||[];
+     rows.push({number:r.INO||'Opening',date:r.IDATE||'',amount:round(amount),paid:round(paid),remaining,source:f.replace('.DBF','')});
+     invoices.set(code,rows);
+    }
+   }
+  }
   const seen=new Set();return master.filter(r=>r.MODE===mode).map(r=>{
-   if(seen.has(r.CODE))throw Error('Duplicate account code '+r.CODE+' in '+mode+' accounts.');seen.add(r.CODE);
+   if(seen.has(r.CODE))throw Error('Duplicate account code '+r.CODE+' in '+mode+' accounts.');
+   seen.add(r.CODE);
    const calculated=checkAvailable?round(balances.get(r.CODE)||0):null;
-   return {code:r.CODE,name:r.NAME,balance:round(num(r.TDBAL)),phone:[r.PH1,r.PH2].filter(Boolean).join(' / '),address:[r.ADD1,r.ADD2,r.ADD3].filter(Boolean).join(', '),lastDate:dates.get(r.CODE)||'',calculated,difference:calculated===null?null:round(num(r.TDBAL)-calculated),raw:r};
+   const openInvoices=(invoices.get(r.CODE)||[]).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.number).localeCompare(String(a.number)));
+   const invoiceTotal=round(openInvoices.reduce((total,item)=>total+item.remaining,0));
+   return {code:r.CODE,name:r.NAME,balance:round(num(r.TDBAL)),phone:[r.PH1,r.PH2].filter(Boolean).join(' / '),address:[r.ADD1,r.ADD2,r.ADD3].filter(Boolean).join(', '),lastDate:dates.get(r.CODE)||'',calculated,difference:calculated===null?null:round(num(r.TDBAL)-calculated),invoiceTotal,invoices:openInvoices,raw:r};
   });
  }
  const receivables=accounts('C',['SAL1.DBF','COPEN.DBF'],'CCODE'),payables=accounts('S',['PUR1.DBF','SOPEN.DBF'],'SCODE');
@@ -90,5 +107,5 @@ export function makeReport(tables,filename='Backup.zip'){
  if(adjustments)warnings.push(adjustments+' stock records contain opening/return/adjustment fields. Their direction must be verified in the POS before relying on calculated stock.');
  if(!tables['PUR2.DBF']||!tables['SAL2.DBF'])warnings.push('Stock movement checks unavailable: purchase or sales item records missing.');
  const dates=[...get('SAL1.DBF'),...get('PUR1.DBF')].filter(r=>!r.CAN&&/^\d{8}$/.test(r.IDATE)).map(r=>r.IDATE).sort();
- return {schema:1,filename,asOf:dates.at(-1)||tables['MAST.DBF'].headerDate.replaceAll('-',''),importedAt:new Date().toISOString(),receivables,payables,stock,warnings,files:Object.entries(tables).map(([name,t])=>({name,records:t.rows.length,deleted:t.deleted})),summary:{receivable:sum(receivables,r=>Math.max(r.balance,0)),customerCredits:sum(receivables,r=>Math.max(-r.balance,0)),payable:sum(payables,r=>Math.max(r.balance,0)),supplierAdvances:sum(payables,r=>Math.max(-r.balance,0)),stockCost:sum(stock,r=>r.packs>0?r.value:0),stockTrade:sum(stock,r=>r.packs>0?r.tradeValue:0),inStock:stock.filter(r=>r.packs>0).length,negativeStock:stock.filter(r=>r.packs<0).length,stockMismatches:stock.filter(r=>r.movementDiff!==null&&r.movementDiff!==0).length}};
+ return {schema:2,filename,asOf:dates.at(-1)||tables['MAST.DBF'].headerDate.replaceAll('-',''),importedAt:new Date().toISOString(),receivables,payables,stock,warnings,files:Object.entries(tables).map(([name,t])=>({name,records:t.rows.length,deleted:t.deleted})),summary:{receivable:sum(receivables,r=>Math.max(r.balance,0)),customerCredits:sum(receivables,r=>Math.max(-r.balance,0)),payable:sum(payables,r=>Math.max(r.balance,0)),supplierAdvances:sum(payables,r=>Math.max(-r.balance,0)),stockCost:sum(stock,r=>r.packs>0?r.value:0),stockTrade:sum(stock,r=>r.packs>0?r.tradeValue:0),inStock:stock.filter(r=>r.packs>0).length,negativeStock:stock.filter(r=>r.packs<0).length,stockMismatches:stock.filter(r=>r.movementDiff!==null&&r.movementDiff!==0).length}};
 }
